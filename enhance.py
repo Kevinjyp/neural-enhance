@@ -250,9 +250,11 @@ class Model(object):
     def __init__(self):
         self.network = collections.OrderedDict()
         self.network['img'] = InputLayer((None, 3, None, None))
+        # 'seed'作用?
         self.network['seed'] = InputLayer((None, 3, None, None))
 
         config, params = self.load_model()
+        # 不清楚self.last_layer()是'seed' 还是 'img'
         self.setup_generator(self.last_layer(), config)
 
         if args.train:
@@ -284,6 +286,7 @@ class Model(object):
 
     def setup_generator(self, input, config):
         for k, v in config.items(): setattr(args, k, v)
+        # upscale, downscale是干嘛的? -> 如何生成zoom?
         args.zoom = 2**(args.generator_upscale - args.generator_downscale)
 
         units_iter = extend(args.generator_filters)
@@ -381,6 +384,7 @@ class Model(object):
         pickle.dump((config, params), bz2.open(self.get_filename(absolute=True), 'wb'))
         print('  - Saved model as `{}` after training.'.format(self.get_filename()))
 
+    # 返回模型的config 和 params
     def load_model(self):
         if not os.path.exists(self.get_filename(absolute=True)):
             if args.train: return {}, {}
