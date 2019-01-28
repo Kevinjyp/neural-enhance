@@ -35,7 +35,7 @@ import collections
 parser = argparse.ArgumentParser(description='Generate a new image by applying style onto a content image.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
-add_arg('files',                nargs='*', default=[])
+add_arg('files',                nargs='*', default=["./pic/test.jpg"])
 add_arg('--zoom',               default=2, type=int,                help='Resolution increase factor for inference.')
 add_arg('--rendering-tile',     default=80, type=int,               help='Size of tiles used for rendering images.')
 add_arg('--rendering-overlap',  default=24, type=int,               help='Number of pixels padding around each tile.')
@@ -248,13 +248,17 @@ class SubpixelReshuffleLayer(lasagne.layers.Layer):
 class Model(object):
 
     def __init__(self):
+        # 有序字典,按键值排序
         self.network = collections.OrderedDict()
         self.network['img'] = InputLayer((None, 3, None, None))
         # 'seed'作用?
         self.network['seed'] = InputLayer((None, 3, None, None))
 
+        # load pickle 不清楚模型的具体细节
         config, params = self.load_model()
         # 不清楚self.last_layer()是'seed' 还是 'img'
+        # 是'seed'因为是按key排序
+        # 建立网络模型结构 -> 基本没看懂,upscale,downscale,...
         self.setup_generator(self.last_layer(), config)
 
         if args.train:
@@ -269,9 +273,11 @@ class Model(object):
     # Network Configuration
     #------------------------------------------------------------------------------------------------------------------
 
+    # 返回神经网络的最后一层
     def last_layer(self):
         return list(self.network.values())[-1]
 
+    # 返回 卷积层 ＋ ReLU激活层?
     def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25):
         conv = ConvLayer(input, units, filter_size, stride=stride, pad=pad, nonlinearity=None)
         prelu = lasagne.layers.ParametricRectifierLayer(conv, alpha=lasagne.init.Constant(alpha))
@@ -284,11 +290,16 @@ class Model(object):
         # self.make_layer(name+'-B', self.last_layer(), units, alpha=1.0)
         return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
 
+    # input : 'seed' layer
     def setup_generator(self, input, config):
+        # config内为有关generator的参数
+        # key : value
+        # 按照config的参数设置全局参数args
         for k, v in config.items(): setattr(args, k, v)
         # upscale, downscale是干嘛的? -> 如何生成zoom?
         args.zoom = 2**(args.generator_upscale - args.generator_downscale)
 
+        # 为含有无限个args.generator_filters的list
         units_iter = extend(args.generator_filters)
         units = next(units_iter)
         self.make_layer('iter.0', input, units, filter_size=(7,7), pad=(3,3))
@@ -365,6 +376,7 @@ class Model(object):
         layers = lasagne.layers.get_all_layers(self.last_layer(), treat_as_input=[self.network['percept']])
         for p, d in zip(itertools.chain(*[l.get_params() for l in layers]), data): p.set_value(d)
 
+    # generator迭代器:返回网络模型中.get_params()为真的一个层(theanos的获得参数函数?)
     def list_generator_layers(self):
         for l in lasagne.layers.get_all_layers(self.network['out'], treat_as_input=[self.network['img']]):
             if not l.get_params(): continue
