@@ -251,12 +251,12 @@ class Model(object):
         # 有序字典,按键值排序
         self.network = collections.OrderedDict()
         self.network['img'] = InputLayer((None, 3, None, None))
-        # 'seed'作用?
+        # [?] 'seed'作用?
         self.network['seed'] = InputLayer((None, 3, None, None))
 
-        # load pickle 不清楚模型的具体细节
+        # [?] load pickle 不清楚模型的具体细节
         config, params = self.load_model()
-        # 不清楚self.last_layer()是'seed' 还是 'img'
+        # [?] 不清楚self.last_layer()是'seed' 还是 'img'
         # 是'seed'因为是按key排序
         # 建立网络模型结构 -> 基本没看懂,upscale,downscale,...
         self.setup_generator(self.last_layer(), config)
@@ -266,8 +266,8 @@ class Model(object):
             self.setup_perceptual(concatenated)
             self.load_perceptual()
             self.setup_discriminator()
-        self.load_generator(params)
-        self.compile()
+        self.load_generator(params) # 将预训练的网络模型的参数赋值给.network
+        self.compile() # 生成self.predict, 是网络模型的输出
 
     #------------------------------------------------------------------------------------------------------------------
     # Network Configuration
@@ -296,7 +296,7 @@ class Model(object):
         # key : value
         # 按照config的参数设置全局参数args
         for k, v in config.items(): setattr(args, k, v)
-        # upscale, downscale是干嘛的? -> 如何生成zoom?
+        # [?] upscale, downscale是干嘛的? -> 如何生成zoom?
         args.zoom = 2**(args.generator_upscale - args.generator_downscale)
 
         # 为含有无限个args.generator_filters的list
@@ -378,8 +378,8 @@ class Model(object):
 
     # generator迭代器:返回网络模型中.get_params()为真的一个层(theanos的获得参数函数?)
     def list_generator_layers(self):
-        for l in lasagne.layers.get_all_layers(self.network['out'], treat_as_input=[self.network['img']]):
-            if not l.get_params(): continue
+        for l in lasagne.layers.get_all_layers(self.network['out'], treat_as_input=[self.network['img']]): # 遍历从'img'开始到'out'层的所有网络
+            if not l.get_params(): continue # 不清楚.get_params()是干嘛的
             name = list(self.network.keys())[list(self.network.values()).index(l)]
             yield (name, l)
 
@@ -407,10 +407,10 @@ class Model(object):
 
     def load_generator(self, params):
         if len(params) == 0: return
-        for k, l in self.list_generator_layers():
+        for k, l in self.list_generator_layers(): # 返回网络模型中所有.get_params为真的网络名字以及本体
             assert k in params, "Couldn't find layer `%s` in loaded model.'" % k
             assert len(l.get_params()) == len(params[k]), "Mismatch in types of layers."
-            for p, v in zip(l.get_params(), params[k]):
+            for p, v in zip(l.get_params(), params[k]): # 将网络模型的参数设置为预训练模型的参数
                 assert v.shape == p.get_value().shape, "Mismatch in number of parameters for layer {}.".format(k)
                 p.set_value(v.astype(np.float32))
 
@@ -434,7 +434,9 @@ class Model(object):
         # Helper function for rendering test images during training, or standalone inference mode.
         input_tensor, seed_tensor = T.tensor4(), T.tensor4()
         input_layers = {self.network['img']: input_tensor, self.network['seed']: seed_tensor}
+        # [?] 以?层为输入,返回到'seed'层和到'out'层的输出 -> 没看懂doc
         output = lasagne.layers.get_output([self.network[k] for k in ['seed','out']], input_layers, deterministic=True)
+        # 自变量seed_tensor, 函数output
         self.predict = theano.function([seed_tensor], output)
 
         if not args.train: return
@@ -562,6 +564,7 @@ class NeuralEnhancer(object):
 
     def process(self, original):
         # Snap the image to a shape that's compatible with the generator (2x, 4x)
+        # [?] 不知道在干吗
         s = 2 ** max(args.generator_upscale, args.generator_downscale)
         by, bx = original.shape[0] % s, original.shape[1] % s
         original = original[by-by//2:original.shape[0]-by//2,bx-bx//2:original.shape[1]-bx//2,:]
@@ -596,7 +599,7 @@ if __name__ == "__main__":
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
             print(filename, end=' ')
-            img = scipy.ndimage.imread(filename, mode='RGB')
+            img = scipy.ndimage.imread(filename, mode='RGB') # 将图片读为np.ndarray
             out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
             print(flush=True)
