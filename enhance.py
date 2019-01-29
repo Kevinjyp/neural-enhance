@@ -574,7 +574,7 @@ class NeuralEnhancer(object):
         image = np.pad(original, ((p, p), (p, p), (0, 0)), mode='reflect')
         output = np.zeros((original.shape[0] * z, original.shape[1] * z, 3), dtype=np.float32)
 
-        # Iterate through the tile coordinates and pass them through the network.
+        # Iterate through  the tile coordinates and pass them through the network.
         for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
             img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 255.0 - 0.5, (2, 0, 1))[np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
